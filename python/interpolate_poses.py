@@ -96,7 +96,17 @@ def interpolate_ins_poses(ins_path, pose_timestamps, origin_timestamp, use_rtk=F
 
     ins_timestamps = ins_timestamps[1:]
     abs_poses = abs_poses[1:]
-
+    
+    if len(ins_timestamps) != len(abs_poses):
+        raise ValueError('Must supply same number of timestamps as poses')
+    # here we should note that 
+    # if the max(pose_timestamps) is larger than 
+    # the max(ins_timestamps)
+    # there will be no interpolation for the last few poses
+    # and this will raise an error in interpolate_poses
+    # here we need to cut off for the pose_timestamps that are larger than the max ins_timestamps
+    pose_timestamps = [pt for pt in pose_timestamps if pt <= max(ins_timestamps)]
+        
     return interpolate_poses(ins_timestamps, abs_poses, pose_timestamps, origin_timestamp)
 
 
@@ -141,7 +151,7 @@ def interpolate_poses(pose_timestamps, abs_poses, requested_timestamps, origin_t
 
     fractions = (requested_timestamps - pose_timestamps[lower_indices]) // \
                 (pose_timestamps[upper_indices] - pose_timestamps[lower_indices])
-
+    
     quaternions_lower = abs_quaternions[:, lower_indices]
     quaternions_upper = abs_quaternions[:, upper_indices]
 
@@ -207,4 +217,4 @@ def interpolate_poses(pose_timestamps, abs_poses, requested_timestamps, origin_t
     for i in range(1, len(requested_timestamps)):
         poses_out[i - 1] = poses_mat[0:4, i * 4:(i + 1) * 4]
 
-    return poses_out
+    return poses_out, requested_timestamps[1:]
