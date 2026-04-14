@@ -119,7 +119,7 @@ class CameraModel:
             elif self.camera_sensor == 'right':
                 return 'stereo_wide_right'
             elif self.camera_sensor == 'centre':
-                return 'stereo_narrow_left'
+                return 'stereo_narrow_left'     
             else:
                 raise RuntimeError('Unknown camera model for given directory: ' + images_dir)
         else:

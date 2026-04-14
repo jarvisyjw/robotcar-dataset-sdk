@@ -19,6 +19,30 @@ from math import sin, cos, atan2, sqrt
 MATRIX_MATCH_TOLERANCE = 1e-4
 
 
+def build_se3_transform_from_xyzquaternion(xyzquaternion):
+    """Creates an SE3 transform from translation and quaternion.
+
+    Args:
+        xyzquaternion (list[float]): translation and quaternion for transform. Must have seven components.
+
+    Returns:
+        numpy.matrixlib.defmatrix.matrix: SE3 homogeneous transformation matrix
+
+    Raises:
+        ValueError: if `len(xyzquaternion) != 7`
+
+    """
+    if len(xyzquaternion) != 7:
+        raise ValueError("Must supply 7 values to build transform")
+
+    se3 = matlib.identity(4)
+    se3[0:3, 3] = np.matrix(xyzquaternion[0:3]).transpose()
+    qwqxqyqz = xyzquaternion[3:7]
+    so3 = quaternion_to_so3(qwqxqyqz)
+    se3[0:3, 0:3] = so3
+    return se3
+
+
 def build_se3_transform(xyzrpy):
     """Creates an SE3 transform from translation and Euler angles.
 
@@ -160,8 +184,31 @@ def so3_to_quaternion(so3):
 
     return np.array([w, x, y, z])
 
+def quaternion_to_so3(quaternion):
+    """Converts a quaternion to an SO3 rotation matrix
 
-def se3_to_components(se3):
+    Args:
+        quaternion: 4-element array representing the quaternion [w, x, y, z]
+
+    Returns:
+        numpy.matrixlib.defmatrix.matrix: 3x3 SO3 rotation matrix
+
+    Raises:
+        ValueError: if quaternion is not 4-element
+    """
+    if len(quaternion) != 4:
+        raise ValueError("Quaternion must have four components")
+
+    x, y, z, w = quaternion
+    # print("Quaternion:", quaternion)
+    # print("Components:", x, y, z, w)
+    so3 = np.matrix([[1 - 2 * (y**2 + z**2), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+                      [2 * (x * y + w * z), 1 - 2 * (x**2 + z**2), 2 * (y * z - w * x)],
+                      [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x**2 + y**2)]])
+    return so3
+
+
+def se3_to_components(se3, quaternion=False):
     """Converts an SE3 rotation matrix to linear translation and Euler angles
 
     Args:
@@ -177,7 +224,19 @@ def se3_to_components(se3):
     """
     if se3.shape != (4, 4):
         raise ValueError("SE3 transform must be a 4x4 matrix")
-    xyzrpy = np.empty(6)
-    xyzrpy[0:3] = se3[0:3, 3].transpose()
-    xyzrpy[3:6] = so3_to_euler(se3[0:3, 0:3])
-    return xyzrpy
+    
+    if quaternion:
+        xyzqxqyqzqw = np.empty(7)
+        xyzqxqyqzqw[0:3] = se3[0:3, 3].transpose()
+        qwqxqyqz = so3_to_quaternion(se3[0:3, 0:3])
+        qxqyqzqw = np.empty(4)
+        qxqyqzqw[0:3] = qwqxqyqz[1:4]
+        qxqyqzqw[3] = qwqxqyqz[0]
+        xyzqxqyqzqw[3:7] = qxqyqzqw
+        return xyzqxqyqzqw
+    else:
+        xyzrpy = np.empty(6)
+        xyzrpy[0:3] = se3[0:3, 3].transpose()
+        xyzrpy[3:6] = so3_to_euler(se3[0:3, 0:3])
+        return xyzrpy
+    

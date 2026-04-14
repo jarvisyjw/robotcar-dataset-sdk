@@ -81,3 +81,8 @@ The scripts here are also designed to be used in your own scripts.
 * `radar.py`: functions for loading radar scan data and converting a polar scan representation to Cartesian
 
 For examples of how to use these functions, see the command line tools above.
+
+Generate GT trajectory
+----------------------
+1. Extract all the timestamps of extracted images
+2. 

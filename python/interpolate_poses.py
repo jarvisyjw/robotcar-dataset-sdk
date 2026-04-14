@@ -60,6 +60,57 @@ def interpolate_vo_poses(vo_path, pose_timestamps, origin_timestamp):
     return interpolate_poses(vo_timestamps, abs_poses, pose_timestamps, origin_timestamp)
 
 
+def interpolate_utm_poses(ins_path, pose_timestamps, origin_timestamp, use_rtk=False):
+    """Interpolate poses from INS.
+
+    Args:
+        ins_path (str): path to file containing poses from INS.
+        pose_timestamps (list[int]): UNIX timestamps at which interpolated poses are required.
+        origin_timestamp (int): UNIX timestamp of origin frame. Poses will be reported relative to this frame.
+
+    Returns:
+        list[numpy.matrixlib.defmatrix.matrix]: SE3 matrix representing interpolated pose for each requested timestamp.
+
+    """
+    
+    with open(ins_path) as ins_file:
+        ins_reader = csv.reader(ins_file)
+        headers = next(ins_file)
+
+        ins_timestamps = [0]
+        abs_poses = [ml.identity(4)]
+
+        upper_timestamp = max(max(pose_timestamps), origin_timestamp)
+
+        for row in ins_reader:
+            timestamp = int(row[0])
+            ins_timestamps.append(timestamp)
+
+            utm = row[5:8] if not use_rtk else row[4:7]
+            rpy = row[-3:] if not use_rtk else row[11:14]
+            xyzrpy = [float(v) for v in utm] + [0, 0, float(rpy[-1])]
+            abs_pose = build_se3_transform(xyzrpy)
+            abs_poses.append(abs_pose)
+
+            if timestamp >= upper_timestamp:
+                break
+
+    ins_timestamps = ins_timestamps[1:]
+    abs_poses = abs_poses[1:]
+    
+    if len(ins_timestamps) != len(abs_poses):
+        raise ValueError('Must supply same number of timestamps as poses')
+    # here we should note that 
+    # if the max(pose_timestamps) is larger than 
+    # the max(ins_timestamps)
+    # there will be no interpolation for the last few poses
+    # and this will raise an error in interpolate_poses
+    # here we need to cut off for the pose_timestamps that are larger than the max ins_timestamps
+    pose_timestamps = [pt for pt in pose_timestamps if pt <= max(ins_timestamps)]
+        
+    return interpolate_poses(ins_timestamps, abs_poses, pose_timestamps, origin_timestamp)
+
+
 def interpolate_ins_poses(ins_path, pose_timestamps, origin_timestamp, use_rtk=False):
     """Interpolate poses from INS.
 
@@ -87,7 +138,8 @@ def interpolate_ins_poses(ins_path, pose_timestamps, origin_timestamp, use_rtk=F
 
             utm = row[5:8] if not use_rtk else row[4:7]
             rpy = row[-3:] if not use_rtk else row[11:14]
-            xyzrpy = [float(v) for v in utm] + [float(v) for v in rpy]
+            # xyzrpy = [float(v) for v in utm] + [float(v) for v in rpy]
+            xyzrpy = [float(v) for v in utm] + [0, 0, float(rpy[-1])]
             abs_pose = build_se3_transform(xyzrpy)
             abs_poses.append(abs_pose)
 
@@ -211,7 +263,7 @@ def interpolate_poses(pose_timestamps, abs_poses, requested_timestamps, origin_t
     poses_mat[0:3, 3::4] = positions_interp
     poses_mat[3, 3::4] = 1
 
-    poses_mat = np.linalg.solve(poses_mat[0:4, 0:4], poses_mat)
+    # poses_mat = np.linalg.solve(poses_mat[0:4, 0:4], poses_mat)
 
     poses_out = [0] * (len(requested_timestamps) - 1)
     for i in range(1, len(requested_timestamps)):
